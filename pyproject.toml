@@ -1,7 +1,7 @@
 [project]
 name = "health-coach"
-version = "0.1.0"
-description = "Persönlicher Telegram Gesundheitscoach powered by Claude"
+version = "1.0.1"
+description = "A personal Telegram AI bot acting as your health coach"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "python-telegram-bot==21.6",
