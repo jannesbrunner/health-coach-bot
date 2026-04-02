@@ -709,7 +709,11 @@ async def ask_claude(
     from .router import route_checkin, route_user_message_async
 
     if check_type == "user_reply":
-        decision = await route_user_message_async(user_text or "")
+        last_assistant = next(
+            (m["content"] for m in reversed(conversation_history or []) if m["role"] == "assistant"),
+            None,
+        )
+        decision = await route_user_message_async(user_text or "", last_assistant=last_assistant)
     else:
         decision = route_checkin(check_type)
 

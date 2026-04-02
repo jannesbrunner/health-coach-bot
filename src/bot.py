@@ -202,34 +202,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 HELP_TEXT = r"""*Dein persönlicher Gesundheitscoach*
 
 *Allgemein*
-/start - Begrüßung
-/help - Diese Übersicht
-/status - Nächste Check\-ins & Cheat\-Status
-/clear - Gesprächsverlauf zurücksetzen
+/start \- Begrüßung
+/help \- Diese Übersicht
+/status \- Nächste Check\-ins & Cheat\-Status
+/clear \- Gesprächsverlauf zurücksetzen
 
 *Check\-in Zeiten*
-/schedule show - Aktuelle Zeiten anzeigen
-/schedule morning 08:00 - Zeit ändern
+/schedule show \- Aktuelle Zeiten anzeigen
+/schedule morning 08:00 \- Zeit ändern
 /schedule noon 12:30
 /schedule evening 21:00
 
 *Gewohnheiten & Ziele*
-/habits - Alle anzeigen
-/habit add Titel - Neu hinzufügen
-/habit edit 1 title Neuer Titel - Feld bearbeiten
-/habit edit 1 priority hoch - Priorität setzen
-/habit edit 1 target\_date 2026\-12\-31 - Zieldatum
-/habit done 1 - Streak erhöhen ✅
-/habit delete 1 - Löschen \(mit Bestätigung\)
-/habit fields - Alle editierbaren Felder
+/habits \- Alle anzeigen
+/habit add Titel \- Neu hinzufügen
+/habit edit 1 title Neuer Titel \- Feld bearbeiten
+/habit edit 1 priority hoch \- Priorität setzen
+/habit edit 1 target\_date 2026\-12\-31 \- Zieldatum
+/habit done 1 \- Streak erhöhen ✅
+/habit delete 1 \- Löschen \(mit Bestätigung\)
+/habit fields \- Alle editierbaren Felder
 
 *Ernährung*
-/diet - Tagebuch \(letzte 7 Tage\) \+ Cheat\-Status
-/diet log dinner Spaghetti Bolognese - Mahlzeit eintragen
-/diet log lunch Döner \-\- fastfood,döner - mit Tags
+/diet \- Tagebuch \(letzte 7 Tage\) \+ Cheat\-Status
+/diet log dinner Spaghetti Bolognese \- Mahlzeit eintragen
+/diet log lunch Döner \-\- fastfood,döner \- mit Tags
 
 *Manueller Test*
-/checkin morning\|noon\|evening - Check\-in jetzt auslösen
+/checkin morning\|noon\|evening \- Check\-in jetzt auslösen
 
 *Natürliche Sprache funktioniert überall\!*
 _„Heute Abend esse ich Döner"_ → Eintrag \+ Cheat\-Check

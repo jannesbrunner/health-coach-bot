@@ -116,14 +116,19 @@ _CLASSIFY_PROMPT = """Klassifiziere diese Nachricht eines Gesundheits-Coaching-K
 Antworte NUR mit einem einzelnen Wort.
 
 Kategorien:
-- simple (Bestätigung, Gruß, kurze Reaktion ohne Inhalt)
+- simple (Bestätigung, Gruß, kurze Reaktion ohne Inhalt – NUR wenn kein Kontext auf eine Aktion hindeutet)
 - habit (Sport, Bewegung, Schlaf, Gewohnheiten, Supplements, Rauchen)
 - diet (Essen, Trinken, Mahlzeiten, Ernährung, Kochen)
 - status (Frage nach Fortschritt, Wochenstand, Übersicht)
 - mixed (mehrere Kategorien oder komplexe Frage)
 
-Nachricht: "{text}"
+{context_block}Nachricht: "{text}"
 Kategorie:"""
+
+_CLASSIFY_PROMPT_CONTEXT_BLOCK = """Vorherige Antwort des Coaches (Kontext):
+"{last_assistant}"
+
+"""
 
 _CLASSIFY_TO_ROUTE: dict[str, RouteDecision] = {
     "simple": RouteDecision(
@@ -154,7 +159,7 @@ _DEFAULT_ROUTE = RouteDecision(
 )
 
 
-async def _classify_with_llm(text: str) -> RouteDecision:
+async def _classify_with_llm(text: str, last_assistant: str | None = None) -> RouteDecision:
     """Fragt Haiku nach der Kategorie. Fallback auf Default bei Fehler."""
     try:
         from .coach import _build_client, _resolve_model
@@ -162,10 +167,17 @@ async def _classify_with_llm(text: str) -> RouteDecision:
         client = _build_client()
         model = _resolve_model("haiku")
 
+        context_block = (
+            _CLASSIFY_PROMPT_CONTEXT_BLOCK.format(last_assistant=last_assistant[:300])
+            if last_assistant
+            else ""
+        )
+        prompt = _CLASSIFY_PROMPT.format(text=text, context_block=context_block)
+
         response = await client.messages.create(
             model=model,
             max_tokens=5,
-            messages=[{"role": "user", "content": _CLASSIFY_PROMPT.format(text=text)}],
+            messages=[{"role": "user", "content": prompt}],
         )
         category = response.content[0].text.strip().lower()
         route = _CLASSIFY_TO_ROUTE.get(category, _DEFAULT_ROUTE)
@@ -185,13 +197,15 @@ def route_user_message(text: str) -> RouteDecision:
     return _route_by_keywords(text)
 
 
-async def route_user_message_async(text: str) -> RouteDecision:
+async def route_user_message_async(
+    text: str, last_assistant: str | None = None
+) -> RouteDecision:
     """Async Routing: Keywords zuerst, bei Unsicherheit LLM-Fallback."""
     result = _route_by_keywords(text)
     if result.reason != "_needs_llm":
         logger.info("User-Routing (keyword) '%s…' → model=%s, tools=%s (%s)", text[:40], result.model, result.tool_set, result.reason)
         return result
-    return await _classify_with_llm(text)
+    return await _classify_with_llm(text, last_assistant=last_assistant)
 
 
 def _route_by_keywords(text: str) -> RouteDecision:
