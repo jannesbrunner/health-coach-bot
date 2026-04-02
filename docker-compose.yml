@@ -1,0 +1,19 @@
+services:
+  health-coach:
+    build: .
+    container_name: health-coach-bot
+    restart: unless-stopped
+    user: "0"
+    env_file:
+      - .env
+    volumes:
+      # Persistente Datenspeicherung: habit_tracking.csv, diet_diary.csv, planned_meals.csv, Profile
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=${TIMEZONE:-Europe/Berlin}
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
