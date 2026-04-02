@@ -1,6 +1,6 @@
 # Health Coach
 
-A personal Telegram bot acting as your health coach, powered by Claude (Anthropic).
+A personal Telegram bot acting as your health coach, working with Anthropic's Claude API or Open Router API.
 
 The bot accompanies you daily with three check-ins (morning, noon, evening), tracks habits and nutrition, and regularly summarizes your progress.
 
@@ -19,7 +19,9 @@ The bot accompanies you daily with three check-ins (morning, noon, evening), tra
 
 - Telegram Bot Token ([BotFather](https://t.me/BotFather))
 - Anthropic API Key ([console.anthropic.com](https://console.anthropic.com))
-- Docker & Docker Compose
+- OR Open Router API Key ([openrouter.com](https://openrouter.com))
+- Docker & Docker Compose 
+- OR local Python environment with dependencies (see `pyproject.toml`)
 
 ## Setup
 
@@ -35,6 +37,7 @@ Fill in `.env`:
 TELEGRAM_BOT_TOKEN=your-bot-token
 TELEGRAM_ALLOWED_USER_ID=your-telegram-user-id
 ANTHROPIC_API_KEY=your-anthropic-key
+OPEN_ROUTER_API_KEY=your-open-router-key (optional, only if using Open Router)
 TIMEZONE=Europe/Berlin
 ```
 
