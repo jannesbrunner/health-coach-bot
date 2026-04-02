@@ -1,13 +1,13 @@
 services:
   health-coach:
-    build: .
+    image: jannesbrunner/health-coach:1.0.0
     container_name: health-coach-bot
     restart: unless-stopped
     user: "0"
     env_file:
       - .env
     volumes:
-      # Persistente Datenspeicherung: habit_tracking.csv, diet_diary.csv, planned_meals.csv, Profile
+      # Mount the data directory to persist health data and logs
       - ./data:/app/data
     environment:
       - PYTHONUNBUFFERED=1
