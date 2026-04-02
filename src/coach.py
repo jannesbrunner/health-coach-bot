@@ -78,17 +78,54 @@ def _load_goals_summary() -> str:
     return "\n".join(lines) if lines else "Keine Ziele definiert."
 
 
+_WEEKDAYS_DE = {
+    "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
+    "Thursday": "Donnerstag", "Friday": "Freitag",
+    "Saturday": "Samstag", "Sunday": "Sonntag",
+}
+
+
+def _build_date_facts(now_local: datetime) -> str:
+    """Berechnet alle relevanten Datums-Fakten einmalig, damit das Modell nichts selbst rechnen muss."""
+    from datetime import date, timedelta
+
+    today = now_local.date()
+    iso_year, iso_week, _ = today.isocalendar()
+
+    yesterday   = today - timedelta(days=1)
+    tomorrow    = today + timedelta(days=1)
+    monday      = today - timedelta(days=today.weekday())
+    sunday      = monday + timedelta(days=6)
+    next_monday = monday + timedelta(days=7)
+    days_left_in_week = (sunday - today).days  # 0 = Sonntag
+
+    def fmt(d: date) -> str:
+        return f"{_WEEKDAYS_DE[d.strftime('%A')]}, {d.strftime('%d.%m.%Y')}"
+
+    summary = f"""\
+- Heute:              {fmt(today)}, {now_local.strftime('%H:%M')} Uhr (Europe/Berlin)
+- Gestern:            {fmt(yesterday)}
+- Morgen:             {fmt(tomorrow)}
+- Diese Woche:        {monday.strftime('%d.%m.')} (Mo) – {sunday.strftime('%d.%m.%Y')} (So), KW {iso_week}/{iso_year}
+- Verbleibende Wochentage (inkl. heute): {days_left_in_week + 1}
+- Nächste Woche ab:   {fmt(next_monday)}"""
+
+    # Kalenderreferenz: letzte 35 Tage + nächste 14 Tage, damit das Modell
+    # für jedes Datum das im Log auftaucht den Wochentag nachschlagen kann.
+    ref_lines = []
+    for offset in range(-35, 15):
+        d = today + timedelta(days=offset)
+        _, wk, _ = d.isocalendar()
+        ref_lines.append(f"  {d.isoformat()}  {_WEEKDAYS_DE[d.strftime('%A')]}  KW {wk}")
+
+    calendar_ref = "Kalenderreferenz (YYYY-MM-DD → Wochentag):\n" + "\n".join(ref_lines)
+
+    return f"{summary}\n\n{calendar_ref}"
+
+
 def build_context() -> str:
     tz = ZoneInfo("Europe/Berlin")
     now_local = datetime.now(tz)
-    today = now_local.strftime("%d.%m.%Y")
-    time_str = now_local.strftime("%H:%M")
-    weekday = now_local.strftime("%A")
-    weekday_de = {
-        "Monday": "Montag", "Tuesday": "Dienstag", "Wednesday": "Mittwoch",
-        "Thursday": "Donnerstag", "Friday": "Freitag",
-        "Saturday": "Samstag", "Sunday": "Sonntag",
-    }.get(weekday, weekday)
 
     from .memory import get_memory_context
 
@@ -97,9 +134,10 @@ def build_context() -> str:
     habit_context  = get_habit_context()
     diet_context   = get_diet_context()
     memory_context = get_memory_context()
+    date_facts     = _build_date_facts(now_local)
 
-    return f"""## Aktuelles Datum & Uhrzeit (Europe/Berlin)
-{weekday_de}, {today}, {time_str} Uhr
+    return f"""## Datum & Uhrzeit (vorberechnet – nie selbst ausrechnen)
+{date_facts}
 
 ## Gesundheitsprofil des Klienten
 {health_profile}
