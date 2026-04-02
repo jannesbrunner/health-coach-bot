@@ -498,6 +498,77 @@ def get_planned_habits_context() -> str:
     return "\n".join([_day_summary(today, "Heute"), _day_summary(tomorrow, "Morgen")])
 
 
+def list_planned_habits_indexed(days_ahead: int = 7) -> str:
+    """Listet bevorstehende geplante Habits mit Index auf."""
+    today = date.today()
+    cutoff = (today + timedelta(days=days_ahead)).isoformat()
+    rows = [r for r in _load_planned()
+            if r.get("date", "") >= today.isoformat() and r.get("date", "") <= cutoff]
+    rows.sort(key=lambda r: r.get("date", ""))
+    if not rows:
+        return "Keine Habits in den nächsten Tagen geplant."
+    goals = _load_goals()
+    goal_map = {g["id"]: g.get("title", g["id"]) for g in goals}
+    lines = ["*Geplante Habits:*"]
+    for i, r in enumerate(rows):
+        title = goal_map.get(r["goal_id"], r["goal_id"])
+        done = r.get("done", "")
+        status = " ✅" if done == "true" else (" ❌" if done == "false" else "")
+        note = f" – {r['notes']}" if r.get("notes") else ""
+        lines.append(f"#{i}  {r['date']}  {title}{note}{status}")
+    return "\n".join(lines)
+
+
+def _visible_planned_sorted(days_ahead: int = 7) -> list[tuple[int, dict]]:
+    """Hilfsfunktion: sichtbare geplante Habits sortiert mit Original-Index."""
+    today = date.today()
+    cutoff = (today + timedelta(days=days_ahead)).isoformat()
+    all_rows = _load_planned()
+    visible = [
+        (i, r) for i, r in enumerate(all_rows)
+        if r.get("date", "") >= today.isoformat() and r.get("date", "") <= cutoff
+    ]
+    visible.sort(key=lambda x: x[1].get("date", ""))
+    return visible
+
+
+def delete_planned_habit_by_index(idx: int) -> str:
+    """Löscht einen geplanten Habit per Index (wie in list_planned_habits_indexed angezeigt)."""
+    all_rows = _load_planned()
+    visible = _visible_planned_sorted()
+    if idx < 0 or idx >= len(visible):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/planned habits`."
+    real_idx, row = visible[idx]
+    all_rows.pop(real_idx)
+    _save_planned(all_rows)
+    goals = _load_goals()
+    goal = next((g for g in goals if g["id"] == row["goal_id"]), None)
+    title = goal["title"] if goal else row["goal_id"]
+    return f"✅ Gelöscht: {row['date']} – {title}"
+
+
+def edit_planned_habit_by_index(idx: int, field: str, value: str) -> str:
+    """Ändert einen geplanten Habit per Index."""
+    all_rows = _load_planned()
+    visible = _visible_planned_sorted()
+    if idx < 0 or idx >= len(visible):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/planned habits`."
+    real_idx, _ = visible[idx]
+    allowed = {"date": "date", "notes": "notes", "done": "done"}
+    key = allowed.get(field.lower())
+    if not key:
+        return f"Unbekanntes Feld '{field}'. Erlaubt: date, notes, done"
+    if key == "done" and value.lower() not in ("true", "false"):
+        return "Wert für 'done' muss 'true' oder 'false' sein."
+    all_rows[real_idx][key] = value.lower() if key == "done" else value
+    _save_planned(all_rows)
+    r = all_rows[real_idx]
+    goals = _load_goals()
+    goal = next((g for g in goals if g["id"] == r["goal_id"]), None)
+    title = goal["title"] if goal else r["goal_id"]
+    return f"✅ Aktualisiert: {r['date']} – {title}"
+
+
 def get_habits_status_text() -> str:
     """Kurzübersicht für /habits oder Nutzeranfrage."""
     status = get_week_status()

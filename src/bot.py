@@ -32,7 +32,21 @@ from .analyzer import (
     run_memory_summaries,
 )
 from .memory import get_memory_context
-from .diet import format_cheat_status_summary, get_recent_diary
+from .diet import (
+    format_cheat_status_summary,
+    get_recent_diary,
+    list_diary_entries,
+    delete_diary_by_index,
+    edit_diary_by_index,
+    list_planned_meals_indexed,
+    delete_planned_meal_by_index,
+    edit_planned_meal_by_index,
+)
+from .habit_tracker import (
+    list_planned_habits_indexed,
+    delete_planned_habit_by_index,
+    edit_planned_habit_by_index,
+)
 from .habits import (
     add_habit,
     delete_habit,
@@ -227,6 +241,17 @@ HELP_TEXT = r"""*Dein persönlicher Gesundheitscoach*
 /diet \- Tagebuch \(letzte 7 Tage\) \+ Cheat\-Status
 /diet log dinner Spaghetti Bolognese \- Mahlzeit eintragen
 /diet log lunch Döner \-\- fastfood,döner \- mit Tags
+/diet diary \- Einträge mit Index anzeigen
+/diet diary delete 2 \- Eintrag löschen
+/diet diary edit 2 type lunch \- Eintrag bearbeiten
+
+*Geplante Einträge*
+/planned meals \- Geplante Mahlzeiten anzeigen
+/planned meals delete 0 \- Löschen
+/planned meals edit 0 description Quiche mit Spinat \- Bearbeiten
+/planned habits \- Geplante Habits anzeigen
+/planned habits delete 0 \- Löschen
+/planned habits edit 0 notes Vor dem Frühstück \- Bearbeiten
 
 *Manueller Test*
 /checkin morning\|noon\|evening \- Check\-in jetzt auslösen
@@ -446,11 +471,145 @@ async def cmd_diet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(result, parse_mode="Markdown")
         return
 
+    # /diet diary – Tagebuch mit Indizes anzeigen (für delete/edit)
+    if args and args[0].lower() == "diary":
+        sub = args[1].lower() if len(args) > 1 else ""
+
+        if sub == "delete":
+            if len(args) < 3:
+                await update.message.reply_text("Verwendung: `/diet diary delete <Nr>`", parse_mode="Markdown")
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein, z.B. `0`.", parse_mode="Markdown")
+                return
+            await update.message.reply_text(delete_diary_by_index(idx), parse_mode="Markdown")
+            return
+
+        if sub == "edit":
+            if len(args) < 5:
+                await update.message.reply_text(
+                    "Verwendung: `/diet diary edit <Nr> <Feld> <Wert>`\n"
+                    "Felder: type, description, tags, notes, date\n"
+                    "Beispiel: `/diet diary edit 2 type lunch`",
+                    parse_mode="Markdown",
+                )
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein.", parse_mode="Markdown")
+                return
+            field = args[3].lower()
+            value = " ".join(args[4:])
+            await update.message.reply_text(edit_diary_by_index(idx, field, value), parse_mode="Markdown")
+            return
+
+        # /diet diary – Einträge mit Indizes anzeigen
+        await update.message.reply_text(list_diary_entries(), parse_mode="Markdown")
+        return
+
     # /diet – Tagebuch + Cheat-Status anzeigen
     diary = get_recent_diary(7)
     cheat = format_cheat_status_summary()
     text = f"*Ernährungstagebuch (letzte 7 Tage)*\n\n{diary}\n\n*Cheat-Limits diese Woche*\n{cheat}"
     await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def cmd_planned(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Verwaltung geplanter Mahlzeiten und Habits."""
+    if not _is_allowed(update):
+        return
+
+    args = context.args or []
+    category = args[0].lower() if args else ""
+
+    # /planned meals [delete <nr> | edit <nr> <feld> <wert>]
+    if category == "meals":
+        sub = args[1].lower() if len(args) > 1 else ""
+
+        if sub == "delete":
+            if len(args) < 3:
+                await update.message.reply_text("Verwendung: `/planned meals delete <Nr>`", parse_mode="Markdown")
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein.", parse_mode="Markdown")
+                return
+            await update.message.reply_text(delete_planned_meal_by_index(idx), parse_mode="Markdown")
+            return
+
+        if sub == "edit":
+            if len(args) < 5:
+                await update.message.reply_text(
+                    "Verwendung: `/planned meals edit <Nr> <Feld> <Wert>`\n"
+                    "Felder: type, description, tags, notes, date\n"
+                    "Beispiel: `/planned meals edit 0 description Quiche mit Spinat`",
+                    parse_mode="Markdown",
+                )
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein.", parse_mode="Markdown")
+                return
+            field = args[3].lower()
+            value = " ".join(args[4:])
+            await update.message.reply_text(edit_planned_meal_by_index(idx, field, value), parse_mode="Markdown")
+            return
+
+        await update.message.reply_text(list_planned_meals_indexed(), parse_mode="Markdown")
+        return
+
+    # /planned habits [delete <nr> | edit <nr> <feld> <wert>]
+    if category == "habits":
+        sub = args[1].lower() if len(args) > 1 else ""
+
+        if sub == "delete":
+            if len(args) < 3:
+                await update.message.reply_text("Verwendung: `/planned habits delete <Nr>`", parse_mode="Markdown")
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein.", parse_mode="Markdown")
+                return
+            await update.message.reply_text(delete_planned_habit_by_index(idx), parse_mode="Markdown")
+            return
+
+        if sub == "edit":
+            if len(args) < 5:
+                await update.message.reply_text(
+                    "Verwendung: `/planned habits edit <Nr> <Feld> <Wert>`\n"
+                    "Felder: date, notes, done\n"
+                    "Beispiel: `/planned habits edit 0 notes Morgens vor dem Frühstück`",
+                    parse_mode="Markdown",
+                )
+                return
+            try:
+                idx = int(args[2])
+            except ValueError:
+                await update.message.reply_text("Die Nummer muss eine Zahl sein.", parse_mode="Markdown")
+                return
+            field = args[3].lower()
+            value = " ".join(args[4:])
+            await update.message.reply_text(edit_planned_habit_by_index(idx, field, value), parse_mode="Markdown")
+            return
+
+        await update.message.reply_text(list_planned_habits_indexed(), parse_mode="Markdown")
+        return
+
+    # /planned – Übersicht
+    await update.message.reply_text(
+        "*Geplante Einträge:*\n\n"
+        "`/planned meals` – Mahlzeiten anzeigen\n"
+        "`/planned habits` – Habits anzeigen\n\n"
+        "Bearbeiten: `/planned meals edit <Nr> <Feld> <Wert>`\n"
+        "Löschen: `/planned meals delete <Nr>`",
+        parse_mode="Markdown",
+    )
 
 
 async def cmd_habits(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -592,6 +751,7 @@ def main() -> None:
     application.add_handler(CommandHandler("plan", cmd_plan))
     application.add_handler(CommandHandler("analyze", cmd_analyze))
     application.add_handler(CommandHandler("diet", cmd_diet))
+    application.add_handler(CommandHandler("planned", cmd_planned))
     application.add_handler(CommandHandler("habits", cmd_habits))
     application.add_handler(CommandHandler("habit", cmd_habit))
     application.add_handler(CommandHandler("checkin", cmd_checkin))

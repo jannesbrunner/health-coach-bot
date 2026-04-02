@@ -223,6 +223,109 @@ def list_diary_entries(meal_date: str = "", meal_type: str = "") -> str:
     return "\n".join(lines)
 
 
+def delete_diary_by_index(idx: int) -> str:
+    """Löscht einen Tagebucheintrag per Index (wie in list_diary_entries angezeigt)."""
+    entries = _load_diary()
+    if idx < 0 or idx >= len(entries):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/diet diary`."
+    removed = entries.pop(idx)
+    fieldnames = ["date", "meal_type", "description", "tags", "notes"]
+    with open(DIARY_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(entries)
+    label = MEAL_LABELS.get(removed.get("meal_type", ""), removed.get("meal_type", ""))
+    return f"✅ Gelöscht: {removed['date']} – {label}: {removed.get('description', '')}"
+
+
+def edit_diary_by_index(idx: int, field: str, value: str) -> str:
+    """Ändert einen Tagebucheintrag per Index."""
+    entries = _load_diary()
+    if idx < 0 or idx >= len(entries):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/diet diary`."
+    allowed = {"type": "meal_type", "description": "description", "desc": "description",
+               "tags": "tags", "notes": "notes", "date": "date"}
+    key = allowed.get(field.lower())
+    if not key:
+        return f"Unbekanntes Feld '{field}'. Erlaubt: type, description, tags, notes, date"
+    if key == "meal_type" and value not in MEAL_TYPES:
+        return f"Unbekannter Typ '{value}'. Erlaubt: {', '.join(MEAL_TYPES)}"
+    entries[idx][key] = value.lower() if key in ("meal_type", "tags") else value
+    fieldnames = ["date", "meal_type", "description", "tags", "notes"]
+    with open(DIARY_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+        writer.writerows(entries)
+    e = entries[idx]
+    label = MEAL_LABELS.get(e["meal_type"], e["meal_type"])
+    return f"✅ Aktualisiert: {e['date']} – {label}: {e['description']}"
+
+
+def list_planned_meals_indexed(days_ahead: int = 7) -> str:
+    """Listet bevorstehende geplante Mahlzeiten mit Index auf."""
+    today = date.today()
+    cutoff = (today + timedelta(days=days_ahead)).isoformat()
+    rows = [r for r in _load_planned() if r.get("date", "") >= today.isoformat() and r.get("date", "") <= cutoff]
+    rows.sort(key=lambda r: (r.get("date", ""), MEAL_TYPES.index(r["meal_type"]) if r.get("meal_type") in MEAL_TYPES else 99))
+    if not rows:
+        return "Keine Mahlzeiten in den nächsten Tagen geplant."
+    lines = ["*Geplante Mahlzeiten:*"]
+    for i, r in enumerate(rows):
+        label = MEAL_LABELS.get(r["meal_type"], r["meal_type"])
+        tags_str = f" [{r['tags']}]" if r.get("tags") else ""
+        met = r.get("target_met", "")
+        status = " ✅" if met == "true" else (" ❌" if met == "false" else "")
+        lines.append(f"#{i}  {r['date']}  {label}: {r['description']}{tags_str}{status}")
+    return "\n".join(lines)
+
+
+def _visible_planned_sorted(days_ahead: int = 7) -> list[tuple[int, dict]]:
+    """Hilfsfunktion: sichtbare geplante Mahlzeiten sortiert mit Original-Index."""
+    today = date.today()
+    cutoff = (today + timedelta(days=days_ahead)).isoformat()
+    all_rows = _load_planned()
+    visible = [
+        (i, r) for i, r in enumerate(all_rows)
+        if r.get("date", "") >= today.isoformat() and r.get("date", "") <= cutoff
+    ]
+    visible.sort(key=lambda x: (x[1].get("date", ""), MEAL_TYPES.index(x[1]["meal_type"]) if x[1].get("meal_type") in MEAL_TYPES else 99))
+    return visible
+
+
+def delete_planned_meal_by_index(idx: int) -> str:
+    """Löscht eine geplante Mahlzeit per Index (wie in list_planned_meals_indexed angezeigt)."""
+    all_rows = _load_planned()
+    visible = _visible_planned_sorted()
+    if idx < 0 or idx >= len(visible):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/planned meals`."
+    real_idx, row = visible[idx]
+    all_rows.pop(real_idx)
+    _save_planned(all_rows)
+    label = MEAL_LABELS.get(row["meal_type"], row["meal_type"])
+    return f"✅ Gelöscht: {row['date']} – {label}: {row['description']}"
+
+
+def edit_planned_meal_by_index(idx: int, field: str, value: str) -> str:
+    """Ändert eine geplante Mahlzeit per Index."""
+    all_rows = _load_planned()
+    visible = _visible_planned_sorted()
+    if idx < 0 or idx >= len(visible):
+        return f"Index #{idx} ungültig. Einträge anzeigen mit `/planned meals`."
+    real_idx, _ = visible[idx]
+    allowed = {"type": "meal_type", "description": "description", "desc": "description",
+               "tags": "tags", "notes": "notes", "date": "date"}
+    key = allowed.get(field.lower())
+    if not key:
+        return f"Unbekanntes Feld '{field}'. Erlaubt: type, description, tags, notes, date"
+    if key == "meal_type" and value not in MEAL_TYPES:
+        return f"Unbekannter Typ '{value}'. Erlaubt: {', '.join(MEAL_TYPES)}"
+    all_rows[real_idx][key] = value.lower() if key == "meal_type" else value
+    _save_planned(all_rows)
+    r = all_rows[real_idx]
+    label = MEAL_LABELS.get(r["meal_type"], r["meal_type"])
+    return f"✅ Aktualisiert: {r['date']} – {label}: {r['description']}"
+
+
 def delete_diary_entry(meal_date: str, meal_type: str, occurrence: int = 0) -> str:
     """Löscht einen Tagebucheintrag. Bei mehreren gleichen: occurrence=0 für ersten."""
     entries = _load_diary()
