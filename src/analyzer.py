@@ -1,9 +1,9 @@
 """
-analyzer.py – Nacht-Analyse und dynamische Tagesplanung
+analyzer.py - Night analysis and dynamic scheduling for the health coach bot.
 
 Flow:
   23:00 → analyze_and_plan_tomorrow() → data/dynamic_schedule.json
-  Alle 5 Min (08-22 Uhr) → get_pending_messages() → Bot sendet fällige Nachrichten
+  Every 5 minutes (08-22) → get_pending_messages() → Bot sends due messages
 """
 
 from __future__ import annotations
@@ -45,8 +45,8 @@ def save_dynamic_schedule(schedule: dict) -> None:
 
 def get_pending_messages(now: datetime | None = None) -> list[dict]:
     """
-    Gibt Nachrichten zurück die jetzt (±3 Minuten) gesendet werden sollen
-    und noch nicht als sent markiert sind.
+    Returns the messages that should be sent now (±3 minutes)
+    and are not yet marked as sent.
     """
     now = now or datetime.now()
     schedule = load_dynamic_schedule()
@@ -61,10 +61,10 @@ def get_pending_messages(now: datetime | None = None) -> list[dict]:
             continue
         try:
             msg_dt = datetime.strptime(f"{today} {msg['time']}", "%Y-%m-%d %H:%M")
-            if abs((now - msg_dt).total_seconds()) <= 180:  # ±3 Minuten
+            if abs((now - msg_dt).total_seconds()) <= 180:  # ±3 minutes
                 pending.append(msg)
         except ValueError:
-            logger.warning("Ungültiges Zeitformat in dynamic_schedule: %s", msg.get("time"))
+            logger.warning("Invalid time format in dynamic_schedule: %s", msg.get("time"))
     return pending
 
 
@@ -77,22 +77,22 @@ def mark_message_sent(msg_id: str) -> None:
 
 
 def format_schedule_for_display() -> str:
-    """Formatiert den dynamischen Plan für /plan Command."""
+    """Formats the dynamic schedule for the /plan command."""
     schedule = load_dynamic_schedule()
     target_date = schedule.get("date", "")
     messages = schedule.get("messages", [])
 
     if not target_date:
-        return "Noch kein dynamischer Plan generiert. Wird um 23:00 Uhr erstellt."
+        return "No dynamic schedule generated yet. It will be created at 23:00."
 
-    lines = [f"*Dynamischer Plan für {target_date}*\n"]
+    lines = [f"*Dynamic Schedule for {target_date}*\n"]
 
     analysis = schedule.get("analysis", "")
     if analysis:
-        lines.append(f"_Analyse:_ {analysis}\n")
+        lines.append(f"_Analysis:_ {analysis}\n")
 
     if not messages:
-        lines.append("Keine zusätzlichen Nachrichten geplant.")
+        lines.append("No additional messages planned.")
     else:
         for msg in sorted(messages, key=lambda x: x.get("time", "")):
             status = "✅" if msg.get("sent") else "⏳"
@@ -102,7 +102,7 @@ def format_schedule_for_display() -> str:
     if generated_at:
         try:
             dt = datetime.fromisoformat(generated_at)
-            lines.append(f"\n_Generiert: {dt.strftime('%d.%m. %H:%M')} Uhr_")
+            lines.append(f"\n_Generated at: {dt.strftime('%d.%m. %H:%M')} Uhr_")
         except ValueError:
             pass
 
@@ -110,11 +110,11 @@ def format_schedule_for_display() -> str:
 
 
 # ---------------------------------------------------------------------------
-# Nacht-Analyse: Claude plant den nächsten Tag
+# Night analysis: LLM plans the next day
 # ---------------------------------------------------------------------------
 
 def _build_client() -> tuple[anthropic.AsyncAnthropic, str]:
-    """Gibt (client, model) zurück – identisch zu coach.py."""
+    """Returns (client, model) – identical to coach.py."""
     openrouter_api_key = os.environ.get("OPENROUTER_API_KEY")
     use_openrouter = bool(openrouter_api_key)
     if use_openrouter:
@@ -134,15 +134,15 @@ def _build_client() -> tuple[anthropic.AsyncAnthropic, str]:
 
 
 def _build_analysis_context() -> str:
-    """Liest alle relevanten Datendateien für die Analyse ein."""
+    """Reads all relevant data files for analysis."""
     from .coach import build_context
     return build_context()
 
 
 async def run_memory_summaries(conversation_history: list[dict]) -> None:
     """
-    Erstellt tägliche, ggf. wöchentliche und monatliche Zusammenfassungen.
-    Wird vor der Nacht-Analyse aufgerufen.
+    Creates daily, weekly, and monthly summaries.
+    Called before the night analysis.
     """
     from .memory import (
         should_summarize_month,
@@ -154,25 +154,25 @@ async def run_memory_summaries(conversation_history: list[dict]) -> None:
 
     today = date.today()
 
-    # Immer: Tages-Zusammenfassung
-    logger.info("Erstelle Tages-Zusammenfassung für %s...", today)
+    # Always: Daily summary
+    logger.info("Creating daily summary for %s...", today)
     await summarize_day(conversation_history, today)
 
-    # Sonntags: Wochen-Zusammenfassung
+    # Sundays: Weekly summary
     if should_summarize_week(today):
-        logger.info("Erstelle Wochen-Zusammenfassung...")
+        logger.info("Creating weekly summary...")
         await summarize_week(today)
 
-    # Letzter Tag des Monats: Monats-Zusammenfassung
+    # Last day of the month: Monthly summary
     if should_summarize_month(today):
-        logger.info("Erstelle Monats-Zusammenfassung...")
+        logger.info("Creating monthly summary...")
         await summarize_month(today)
 
 
 async def analyze_and_plan_tomorrow() -> dict:
     """
-    Hauptfunktion: Liest alle Daten, lässt Claude analysieren,
-    speichert den dynamischen Zeitplan für morgen.
+    Main function: Reads all data, lets Claude analyze,
+    and saves the dynamic schedule for tomorrow.
     """
     from .scheduler import load_schedule
 
@@ -194,13 +194,13 @@ Die Nachrichten werden automatisch zum geplanten Zeitpunkt über Telegram gesend
 - Uhrzeiten sinnvoll wählen: Wassererinnerung → mittags/nachmittags, Sport → morgens/abends, Mahlzeitenhinweis → vor der Mahlzeit
 
 ## Regeln für den Inhalt
-- Maximal 5 Nachrichten – lieber weniger, aber treffsichere
+- Maximal 5 Nachrichten - lieber weniger, aber treffsichere
 - Nur bei echten Schwächen oder konkreten Plänen eingreifen
 - Positives Feedback wenn Ziele gut laufen (nicht nur kritisieren)
 - Direkt auf morgen bezogene Pläne (planned_meals) einbeziehen
-- Kurz, persönlich, motivierend – kein Coaching-Blabla
+- Kurz, persönlich, motivierend - kein Coaching-Blabla
 - Auf Deutsch schreiben
-- Kein **fett** – nutze *fett* (einfache Sternchen) für Telegram
+- Kein **fett** - nutze *fett* (einfache Sternchen) für Telegram
 
 ## Aktueller Kontext (alle relevanten Daten)
 {context}
@@ -221,7 +221,7 @@ Antworte ausschließlich mit einem validen JSON-Objekt, ohne Markdown-Codeblock,
 }}"""
 
     client, model = _build_client()
-    logger.info("Starte Nacht-Analyse für %s mit Modell %s", tomorrow, model)
+    logger.info("Start night analysis for %s with model %s", tomorrow, model)
 
     response = await client.messages.create(
         model=model,
@@ -230,16 +230,16 @@ Antworte ausschließlich mit einem validen JSON-Objekt, ohne Markdown-Codeblock,
     )
 
     raw = response.content[0].text.strip()
-    logger.debug("Rohantwort der Analyse: %s", raw[:300])
+    logger.debug("Raw analysis response: %s", raw[:300])
 
-    # JSON robust extrahieren (falls Claude trotzdem Text drumherum schreibt)
+    # Robustly extract JSON (in case Claude adds text around it)
     json_match = re.search(r'\{[\s\S]*\}', raw)
     if not json_match:
-        raise ValueError(f"Kein JSON in der Claude-Antwort: {raw[:300]}")
+        raise ValueError(f"No JSON in Claude's response: {raw[:300]}")
 
     result = json.loads(json_match.group())
 
-    # Validierung und sent-Flag
+    # Validation and sent-flag
     messages = result.get("messages", [])
     for msg in messages:
         msg.setdefault("sent", False)
@@ -255,7 +255,7 @@ Antworte ausschließlich mit einem validen JSON-Objekt, ohne Markdown-Codeblock,
 
     save_dynamic_schedule(schedule)
     logger.info(
-        "Dynamischer Plan für %s gespeichert: %d Nachrichten – %s",
+        "Dynamic schedule for %s saved: %d messages – %s",
         tomorrow,
         len(messages),
         result.get("analysis", "")[:80],

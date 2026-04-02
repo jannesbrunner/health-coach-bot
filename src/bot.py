@@ -1,5 +1,5 @@
 """
-bot.py – Hauptdatei: Telegram-Bot + APScheduler-Integration
+bot.py - Main File: Telegram-Bot + APScheduler-Integration
 """
 
 import json
@@ -59,36 +59,36 @@ ALLOWED_USER_ID: int = int(os.environ["TELEGRAM_ALLOWED_USER_ID"])
 DATA_DIR = Path(__file__).parent.parent / "data"
 CHAT_LOG_FILE = DATA_DIR / "chat_log.json"
 
-# Kurz-History für Claude-Context (begrenzt, spart Token)
+# Short-History for LLM-Context (limited, saves tokens)
 MAX_HISTORY = 6
 _conversation_history: list[dict] = []
 
-# Vollständiges Tages-Log für die nächtliche Zusammenfassung (unbegrenzt)
+# Full daily log for nightly summary (unlimited)
 _daily_log: list[dict] = []
 
 
 def _load_chat_log() -> None:
-    """Lädt Gesprächsverlauf und Tages-Log vom Disk (Crash-Persistenz)."""
+    """Loads conversation history and daily log from disk (crash persistence)."""
     global _conversation_history, _daily_log
     if not CHAT_LOG_FILE.exists():
         return
     try:
         data = json.loads(CHAT_LOG_FILE.read_text(encoding="utf-8"))
         if data.get("date") != date.today().isoformat():
-            logger.info("Chat-Log ist von einem anderen Tag – starte frisch.")
+            logger.info("Chat-Log is from a different day – starting fresh.")
             return
         _conversation_history = data.get("conversation_history", [])
         _daily_log = data.get("daily_log", [])
         logger.info(
-            "Chat-Log geladen: %d History-Einträge, %d Tages-Log-Einträge",
+            "Chat-Log loaded: %d history entries, %d daily log entries",
             len(_conversation_history), len(_daily_log),
         )
     except Exception:
-        logger.warning("Chat-Log konnte nicht geladen werden, starte frisch.")
+        logger.warning("Chat-Log could not be loaded, starting fresh.")
 
 
 def _save_chat_log() -> None:
-    """Schreibt aktuellen Stand auf Disk."""
+    """Writes current state to disk."""
     try:
         CHAT_LOG_FILE.write_text(
             json.dumps(
@@ -103,11 +103,11 @@ def _save_chat_log() -> None:
             encoding="utf-8",
         )
     except Exception:
-        logger.warning("Chat-Log konnte nicht gespeichert werden.")
+        logger.warning("Chat-Log could not be saved.")
 
 
 def _fmt(text: str) -> str:
-    """Konvertiert Claude-Output zu Telegram Markdown (parse_mode='Markdown')."""
+    """Converts Claude output to Telegram Markdown (parse_mode='Markdown')."""
     # **bold** → *bold*
     text = re.sub(r'\*\*(.+?)\*\*', r'*\1*', text, flags=re.DOTALL)
     # ### Heading → *Heading*
@@ -122,17 +122,17 @@ def _is_allowed(update: Update) -> bool:
 
 def _append_history(role: str, content: str) -> None:
     entry = {"role": role, "content": content}
-    # Kurz-History: begrenzt auf MAX_HISTORY Paare für Claude-Context
+    # Short-History: limited to MAX_HISTORY pairs for LLM-Context
     _conversation_history.append(entry)
     while len(_conversation_history) > MAX_HISTORY * 2:
         _conversation_history.pop(0)
-    # Tages-Log: wächst den ganzen Tag unbegrenzt für die Zusammenfassung
+    # Daily log: grows unlimited throughout the day for summary
     _daily_log.append(entry)
     _save_chat_log()
 
 
 # ---------------------------------------------------------------------------
-# Proaktive Nachrichten (werden vom Scheduler aufgerufen)
+# Proactive messages (called by the scheduler)
 # ---------------------------------------------------------------------------
 
 async def send_proactive_message(
@@ -141,14 +141,14 @@ async def send_proactive_message(
 ) -> None:
     app = application or _app
     check = cast(CheckType, check_type)
-    logger.info("Proaktiver Check-in: %s", check_type)
+    logger.info("Proactive check-in: %s", check_type)
 
     try:
         await app.bot.send_chat_action(chat_id=ALLOWED_USER_ID, action=ChatAction.TYPING)
         response = await ask_claude(check_type=check, conversation_history=list(_conversation_history))
         await app.bot.send_message(chat_id=ALLOWED_USER_ID, text=_fmt(response), parse_mode="Markdown")
 
-        _append_history("user", f"[Proaktiver {check_type}-Check-in]")
+        _append_history("user", f"[Proactive {check_type}-Check-in]")
         _append_history("assistant", response)
 
 
@@ -156,7 +156,7 @@ async def send_proactive_message(
         if check_type == "morning":
             food_question = (
                 "Weißt du schon, was du heute essen wirst? 🍽️\n\n"
-                "Erzähl mir einfach von deinen geplanten Mahlzeiten – "
+                "Erzähl mir einfach von deinen geplanten Mahlzeiten  "
                 "ich schaue dann, ob das gut zu deinen Ernährungszielen passt, "
                 "und gebe dir Vorschläge falls du noch keine Idee hast."
             )
@@ -164,20 +164,20 @@ async def send_proactive_message(
             _append_history("assistant", food_question)
 
     except Exception:
-        logger.exception("Fehler beim proaktiven Check-in '%s'", check_type)
+        logger.exception("Error while proactive check-in '%s'", check_type)
 
 
 # ---------------------------------------------------------------------------
-# Handler für Nutzer-Nachrichten
+# Handler for user messages
 # ---------------------------------------------------------------------------
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if not _is_allowed(update):
-        logger.warning("Unberechtigter Zugriff von User-ID %s", update.effective_user and update.effective_user.id)
+        logger.warning("Unauthorized access from User-ID %s", update.effective_user and update.effective_user.id)
         return
 
     user_text = update.message.text or ""
-    logger.info("Nutzer-Nachricht empfangen: %s", user_text[:80])
+    logger.info("User message received: %s", user_text[:80])
 
     await update.message.chat.send_action(ChatAction.TYPING)
 
@@ -193,7 +193,7 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         _append_history("assistant", response)
 
     except Exception:
-        logger.exception("Fehler bei der Verarbeitung der Nutzer-Nachricht")
+        logger.exception("Error while processing user message")
         await update.message.reply_text(
             "Entschuldigung, da ist etwas schiefgelaufen. Bitte versuche es gleich nochmal."
         )
@@ -202,34 +202,34 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 HELP_TEXT = r"""*Dein persönlicher Gesundheitscoach*
 
 *Allgemein*
-/start – Begrüßung
-/help – Diese Übersicht
-/status – Nächste Check\-ins & Cheat\-Status
-/clear – Gesprächsverlauf zurücksetzen
+/start - Begrüßung
+/help - Diese Übersicht
+/status - Nächste Check\-ins & Cheat\-Status
+/clear - Gesprächsverlauf zurücksetzen
 
 *Check\-in Zeiten*
-/schedule show – Aktuelle Zeiten anzeigen
-/schedule morning 08:00 – Zeit ändern
+/schedule show - Aktuelle Zeiten anzeigen
+/schedule morning 08:00 - Zeit ändern
 /schedule noon 12:30
 /schedule evening 21:00
 
 *Gewohnheiten & Ziele*
-/habits – Alle anzeigen
-/habit add Titel – Neu hinzufügen
-/habit edit 1 title Neuer Titel – Feld bearbeiten
-/habit edit 1 priority hoch – Priorität setzen
-/habit edit 1 target\_date 2026\-12\-31 – Zieldatum
-/habit done 1 – Streak erhöhen ✅
-/habit delete 1 – Löschen \(mit Bestätigung\)
-/habit fields – Alle editierbaren Felder
+/habits - Alle anzeigen
+/habit add Titel - Neu hinzufügen
+/habit edit 1 title Neuer Titel - Feld bearbeiten
+/habit edit 1 priority hoch - Priorität setzen
+/habit edit 1 target\_date 2026\-12\-31 - Zieldatum
+/habit done 1 - Streak erhöhen ✅
+/habit delete 1 - Löschen \(mit Bestätigung\)
+/habit fields - Alle editierbaren Felder
 
 *Ernährung*
-/diet – Tagebuch \(letzte 7 Tage\) \+ Cheat\-Status
-/diet log dinner Spaghetti Bolognese – Mahlzeit eintragen
-/diet log lunch Döner \-\- fastfood,döner – mit Tags
+/diet - Tagebuch \(letzte 7 Tage\) \+ Cheat\-Status
+/diet log dinner Spaghetti Bolognese - Mahlzeit eintragen
+/diet log lunch Döner \-\- fastfood,döner - mit Tags
 
 *Manueller Test*
-/checkin morning\|noon\|evening – Check\-in jetzt auslösen
+/checkin morning\|noon\|evening - Check\-in jetzt auslösen
 
 *Natürliche Sprache funktioniert überall\!*
 _„Heute Abend esse ich Döner"_ → Eintrag \+ Cheat\-Check
@@ -250,8 +250,8 @@ async def cmd_start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await update.message.reply_text(
         "Hallo! Ich bin dein persönlicher Gesundheitscoach.\n\n"
         "Ich melde mich täglich zu den konfigurierten Check-in Zeiten bei dir.\n"
-        "Du kannst mir jederzeit schreiben – ich bin für dich da!\n\n"
-        "/help – alle Befehle anzeigen"
+        "Du kannst mir jederzeit schreiben - ich bin für dich da!\n\n"
+        "/help - alle Befehle anzeigen"
     )
 
 
@@ -271,7 +271,7 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def cmd_schedule(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ändert die Uhrzeit eines Check-ins. Syntax: /schedule <morning|noon|evening> <HH:MM>"""
+    """Alters the time of a check-in. Syntax: /schedule <morning|noon|evening> <HH:MM>"""
     if not _is_allowed(update):
         return
 
@@ -338,28 +338,28 @@ async def cmd_checkin(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 async def run_night_analysis(application: "Application | None" = None) -> None:
     """23:00 Job: Tages-Zusammenfassung → Wochen/Monats-Summary (falls fällig) → Nacht-Analyse."""
-    logger.info("Starte nächtlichen Job...")
+    logger.info("Starting nightly Job...")
     try:
         # 1. Gesprächsgedächtnis: Zusammenfassung des heutigen Tages erstellen
         await run_memory_summaries(list(_daily_log))
-        logger.info("Gedächtnis-Zusammenfassungen abgeschlossen.")
-        # Tages-Log zurücksetzen – Inhalt ist jetzt in data/memory/ gespeichert
+        logger.info("Memory summaries completed.")
+        # Reset daily log – content is now saved in data/memory/
         _daily_log.clear()
         _save_chat_log()
     except Exception:
-        logger.exception("Fehler bei den Gedächtnis-Zusammenfassungen")
+        logger.exception("Error during memory summaries")
 
     try:
-        # 2. Dynamischen Plan für morgen erstellen
+        # 2. Create dynamic plan for tomorrow
         schedule = await analyze_and_plan_tomorrow()
         n = len(schedule.get("messages", []))
-        logger.info("Nacht-Analyse abgeschlossen: %d Nachrichten geplant.", n)
+        logger.info("Night analysis completed: %d messages planned.", n)
     except Exception:
-        logger.exception("Fehler bei der Nacht-Analyse")
+        logger.exception("Error during night analysis")
 
 
 async def poll_dynamic_messages(application: "Application | None" = None) -> None:
-    """Alle 5 Min: Prüft ob dynamische Nachrichten gesendet werden sollen."""
+    """Every 5 minutes: Checks if dynamic messages should be sent."""
     app = application or _app
     from datetime import datetime
     pending = get_pending_messages(datetime.now())
@@ -371,17 +371,17 @@ async def poll_dynamic_messages(application: "Application | None" = None) -> Non
                 parse_mode="Markdown",
             )
             mark_message_sent(msg["id"])
-            logger.info("Dynamische Nachricht gesendet: [%s] %s", msg.get("topic"), msg["message"][:60])
+            logger.info("Dynamic message sent: [%s] %s", msg.get("topic"), msg["message"][:60])
         except Exception:
-            logger.exception("Fehler beim Senden der dynamischen Nachricht %s", msg.get("id"))
+            logger.exception("Error sending dynamic message %s", msg.get("id"))
 
 
 async def cmd_memory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Zeigt das gespeicherte Gedächtnis (letzte Zusammenfassungen)."""
+    """Shows the stored memory (latest summaries)."""
     if not _is_allowed(update):
         return
     text = get_memory_context()
-    # In Blöcke aufteilen falls zu lang für eine Telegram-Nachricht
+    # Split into blocks if too long for a Telegram message
     if len(text) > 3800:
         chunks = [text[i:i+3800] for i in range(0, len(text), 3800)]
         for chunk in chunks:
@@ -391,14 +391,14 @@ async def cmd_memory(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
 
 
 async def cmd_plan(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Zeigt den dynamischen Plan für morgen."""
+    """Shows the dynamic plan for tomorrow."""
     if not _is_allowed(update):
         return
     await update.message.reply_text(format_schedule_for_display(), parse_mode="Markdown")
 
 
 async def cmd_analyze(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Triggert die Nacht-Analyse manuell (zum Testen)."""
+    """Triggers the night analysis manually (for testing)."""
     if not _is_allowed(update):
         return
     await update.message.reply_text("Analyse läuft... ⏳")
@@ -412,12 +412,12 @@ async def cmd_analyze(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             parse_mode="Markdown",
         )
     except Exception:
-        logger.exception("Fehler bei manueller Analyse")
-        await update.message.reply_text("Fehler bei der Analyse. Bitte Logs prüfen.")
+        logger.exception("Error during manual analysis")
+        await update.message.reply_text("Error during analysis. Please check logs.")
 
 
 async def cmd_diet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Ernährungstagebuch anzeigen oder Mahlzeit direkt eintragen."""
+    """Shows the diet diary or logs a meal directly."""
     if not _is_allowed(update):
         return
 
@@ -454,7 +454,7 @@ async def cmd_diet(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 
 async def cmd_habits(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Listet alle Gewohnheiten auf."""
+    """Shows all habits."""
     if not _is_allowed(update):
         return
     await update.message.reply_text(list_habits(), parse_mode="Markdown")
