@@ -48,7 +48,8 @@ from .diet import (
 )
 
 DATA_DIR = Path(__file__).parent.parent / "data"
-HAIKU_MODEL = "claude-haiku-4-5-20251001"
+LITE_MODEL_DEFAULT = "claude-haiku-4-5-20251001"
+LLM_MODEL_DEFAULT  = "claude-sonnet-4-6"
 
 CheckType = Literal["morning", "noon", "evening", "user_reply"]
 
@@ -584,9 +585,9 @@ def _build_client() -> anthropic.AsyncAnthropic:
 
 def _resolve_model(choice: str) -> str:
     if choice == "haiku":
-        base = os.environ.get("HAIKU_MODEL", HAIKU_MODEL)
+        base = os.environ.get("LITE_MODEL", LITE_MODEL_DEFAULT)
     else:
-        base = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+        base = os.environ.get("LLM_MODEL", LLM_MODEL_DEFAULT)
     if os.environ.get("OPENROUTER_API_KEY") and "/" not in base:
         return f"anthropic/{base}"
     return base

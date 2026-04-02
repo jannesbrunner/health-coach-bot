@@ -121,7 +121,7 @@ def _build_client() -> tuple[anthropic.AsyncAnthropic, str]:
     else:
         client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
-    model = os.environ.get("LLM_MODEL", "claude-sonnet-4-6")
+    model = os.environ.get("LITE_MODEL", "claude-haiku-4-5-20251001")
     if use_openrouter and "/" not in model:
         model = f"anthropic/{model}"
     return client, model

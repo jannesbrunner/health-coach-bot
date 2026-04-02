@@ -68,6 +68,19 @@ View logs:
 docker compose logs -f
 ```
 
+## Models
+
+The bot uses two models with different roles:
+
+| Variable | Role | Default |
+|---|---|---|
+| `LLM_MODEL` | Main model — check-ins, tool calls, night analysis | `claude-sonnet-4-6` |
+| `LITE_MODEL` | Lightweight model — routing, memory summaries | `claude-haiku-4-5-20251001` |
+
+Both variables are optional — the defaults work out of the box with the Anthropic API.
+
+**OpenRouter:** Prefix the model name with `anthropic/`, e.g. `anthropic/claude-sonnet-4-6`. The bot detects OpenRouter automatically when `OPENROUTER_API_KEY` is set.
+
 ## Data & Privacy
 
 All user data lives exclusively in the `data/` directory, which is mounted as a Docker volume. The image contains no personal data. The directory is listed in `.gitignore` and will never be committed to the repository.
